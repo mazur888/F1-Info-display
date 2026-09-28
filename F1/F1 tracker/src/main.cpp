@@ -166,6 +166,9 @@ String utf8_substr(const String& s, int codepoints) {
 bool httpGetJson(const char* url) {
   doc.clear();
   HTTPClient http;
+  http.setUserAgent("F1Tracker/2026.09.27");
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(15000);
   http.begin(url);
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
@@ -173,7 +176,8 @@ bool httpGetJson(const char* url) {
     http.end();
     return false;
   }
-  DeserializationError err = deserializeJson(doc, http.getStream());
+  // HTTPClient decodes chunked transfer framing before JSON parsing.
+  DeserializationError err = deserializeJson(doc, http.getString());
   http.end();
   if (err) {
     Serial.printf("JSON parse failed: %s\n", err.f_str());
@@ -755,6 +759,19 @@ void setup() {
 
   server.on("/", HTTP_GET, handleOTAUpdatePage);
   server.on("/api", HTTP_GET, handleF1Page);
+  server.on("/status", HTTP_GET, []() {
+    JsonDocument status;
+    status["firmware"] = "F1Tracker/2026.09.27";
+    status["uptimeSeconds"] = millis() / 1000;
+    status["freeHeap"] = ESP.getFreeHeap();
+    status["apiBase"] = API_BASE;
+    status["lastRace"] = lastName;
+    status["nextRace"] = nextName;
+    status["nextRaceDate"] = nextDate;
+    String body;
+    serializeJson(status, body);
+    server.send(200, "application/json", body);
+  });
   server.on("/update", HTTP_POST,
     [](){
       server.sendHeader("Connection", "close");
