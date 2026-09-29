@@ -358,7 +358,7 @@ bool FetchNextRaceForYear(int year) {
                    + ", " + race["Circuit"]["Location"]["country"].as<const char*>();
 
     struct tm tmRace = {};
-    if (sscanf(dateStr, "%4d-%2d-%2d", &tmRace.tm_year, &tmRace.tm_mon, &tmRace.tm_mday) != 3) continue;
+    if (!dateStr || sscanf(dateStr, "%4d-%2d-%2d", &tmRace.tm_year, &tmRace.tm_mon, &tmRace.tm_mday) != 3) continue;
     tmRace.tm_year -= 1900;
     tmRace.tm_mon  -= 1;
 
@@ -371,6 +371,8 @@ bool FetchNextRaceForYear(int year) {
 
     if (raceEpoch >= now) {
       nextRound   = rnd;
+      nextSeasonYear = year;
+      nextRaceEpoch = raceEpoch;
       nextDate    = dateStr;
       nextTime    = timeStrZ ? timeStrZ : "";
       nextName    = GPname;
@@ -411,13 +413,13 @@ void FetchCalendar() {
     // 2) parse into tm (UTC)
     struct tm tmRace = {};
     // parse date
-    if (sscanf(dateStr, "%4d-%2d-%2d",
+    if (!dateStr || sscanf(dateStr, "%4d-%2d-%2d",
                &tmRace.tm_year, &tmRace.tm_mon, &tmRace.tm_mday) != 3) continue;
     tmRace.tm_year -= 1900;
     tmRace.tm_mon  -= 1;
     // parse time (drop trailing 'Z')
     int h,m,s;
-    if (sscanf(timeStr, "%2d:%2d:%2d", &h, &m, &s) != 3) continue;
+    if (!timeStr || sscanf(timeStr, "%2d:%2d:%2d", &h, &m, &s) != 3) continue;
     tmRace.tm_hour = h;
     tmRace.tm_min  = m;
     tmRace.tm_sec  = s;
@@ -523,7 +525,7 @@ void DrawLastRace() {
 //#########################################################################################
 
 void DrawPolePosition(int seasonYear, unsigned round) {
-  String url = API_BASE + String(seasonYear)
+  String url = "https://api.jolpi.ca/ergast/f1/" + String(seasonYear)
                + "/" + String(round)
                + "/qualifying/";
 
@@ -683,6 +685,7 @@ void DrawConstructors() {
       drawStringBLACK(0, 114, constrLines[4].c_str(), LEFT);
 
       Serial.printf("  #%s %s — %sp (%s wins)\n",
+                    c["position"].as<const char*>(),
                     c["Constructor"]["name"].as<const char*>(),
                     c["points"].as<const char*>(),
                     c["wins"].as<const char*>());
