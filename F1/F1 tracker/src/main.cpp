@@ -163,13 +163,17 @@ String utf8_substr(const String& s, int codepoints) {
   return out;
 }
 //#########################################################################################
-bool httpGetJson(const char* url) {
-  doc.clear();
+bool httpGetJson(const char* url, JsonDocument& target) {
+  target.clear();
   HTTPClient http;
-  http.setUserAgent("F1Tracker/2026.09.27");
+  http.setUserAgent("F1Tracker/2026.09.29");
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(15000);
-  http.begin(url);
+  if (!http.begin(url)) {
+    Serial.printf("HTTP begin failed for %s\n", url);
+    return false;
+  }
+  http.addHeader("Accept", "application/json");
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
     Serial.printf("HTTP %d for %s\n", code, url);
@@ -177,13 +181,23 @@ bool httpGetJson(const char* url) {
     return false;
   }
   // HTTPClient decodes chunked transfer framing before JSON parsing.
-  DeserializationError err = deserializeJson(doc, http.getString());
+  DeserializationError err = deserializeJson(target, http.getString());
   http.end();
   if (err) {
-    Serial.printf("JSON parse failed: %s\n", err.f_str());
+    Serial.printf("JSON parse failed for %s: %s\n", url, err.f_str());
+    target.clear();
+    return false;
+  }
+  if (!target["MRData"].is<JsonObject>()) {
+    Serial.printf("Missing MRData for %s\n", url);
+    target.clear();
     return false;
   }
   return true;
+}
+
+bool httpGetJson(const char* url) {
+  return httpGetJson(url, doc);
 }
 //#########################################################################################
 
@@ -761,7 +775,7 @@ void setup() {
   server.on("/api", HTTP_GET, handleF1Page);
   server.on("/status", HTTP_GET, []() {
     JsonDocument status;
-    status["firmware"] = "F1Tracker/2026.09.27";
+    status["firmware"] = "F1Tracker/2026.09.29";
     status["uptimeSeconds"] = millis() / 1000;
     status["freeHeap"] = ESP.getFreeHeap();
     status["apiBase"] = API_BASE;
