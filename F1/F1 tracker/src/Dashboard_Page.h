@@ -12,29 +12,21 @@ extern String    API_CONSTR_STAND;
 extern unsigned  lastRound, nextRound;
 extern String    nextName, nextDate, nextTime;
 
-bool httpGetJson(const char* url);
+bool httpGetJson(const char* url, JsonDocument& target);
 void FetchCalendar();
 
 inline void handleF1Page() {
-  HTTPClient http;
-
-  DynamicJsonDocument calDoc(16 * 1024);
-  http.begin(API_RACES);
-  if (http.GET() != HTTP_CODE_OK ||
-      deserializeJson(calDoc, http.getStream())) {
+  JsonDocument calDoc;
+  if (!httpGetJson(API_RACES.c_str(), calDoc)) {
     server.send(500, "text/plain", "Calendar fetch failed");
-    http.end();
     return;
   }
-  http.end();
   JsonArray races = calDoc["MRData"]["RaceTable"]["Races"].as<JsonArray>();
 
   FetchCalendar();
 
-  DynamicJsonDocument ddoc(8 * 1024);
-  http.begin(API_DRIVER_STAND);
-  if (http.GET() == HTTP_CODE_OK) deserializeJson(ddoc, http.getStream());
-  http.end();
+  JsonDocument ddoc;
+  httpGetJson(API_DRIVER_STAND.c_str(), ddoc);
   JsonObject topD = ddoc["MRData"]["StandingsTable"]
                      ["StandingsLists"][0]
                      ["DriverStandings"][0]
@@ -42,10 +34,8 @@ inline void handleF1Page() {
   String topDrv = String(topD["Driver"]["familyName"].as<const char*>())
                 + " — " + topD["points"].as<const char*>() + "p";
 
-  DynamicJsonDocument cdoc(8 * 1024);
-  http.begin(API_CONSTR_STAND);
-  if (http.GET() == HTTP_CODE_OK) deserializeJson(cdoc, http.getStream());
-  http.end();
+  JsonDocument cdoc;
+  httpGetJson(API_CONSTR_STAND.c_str(), cdoc);
   JsonObject topC = cdoc["MRData"]["StandingsTable"]
                      ["StandingsLists"][0]
                      ["ConstructorStandings"][0]
@@ -141,11 +131,8 @@ inline void handleF1Page() {
     const char* dt   = r["date"];
 
     // pole
-    DynamicJsonDocument qd(4 * 1024);
-    http.begin(API_BASE + "/" + rnd + "/qualifying/");
-    if (http.GET() == HTTP_CODE_OK)
-      deserializeJson(qd, http.getStream());
-    http.end();
+    JsonDocument qd;
+    httpGetJson((API_BASE + "/" + rnd + "/qualifying/").c_str(), qd);
     JsonArray qa = qd["MRData"]["RaceTable"]["Races"][0]
                      ["QualifyingResults"]
                      .as<JsonArray>();
@@ -154,11 +141,8 @@ inline void handleF1Page() {
                 : "TBD";
 
     // podium
-    DynamicJsonDocument rd(8 * 1024);
-    http.begin(API_BASE + "/" + rnd + "/results/");
-    if (http.GET() == HTTP_CODE_OK)
-      deserializeJson(rd, http.getStream());
-    http.end();
+    JsonDocument rd;
+    httpGetJson((API_BASE + "/" + rnd + "/results/").c_str(), rd);
     JsonArray ra = rd["MRData"]["RaceTable"]["Races"][0]
                      ["Results"]
                      .as<JsonArray>();
@@ -191,12 +175,7 @@ inline void handleF1Page() {
         </thead><tbody>
 )rawliteral");
   {
-    DynamicJsonDocument d2(8 * 1024);
-    http.begin(API_DRIVER_STAND);
-    if (http.GET()==HTTP_CODE_OK)
-      deserializeJson(d2, http.getStream());
-    http.end();
-    for (JsonVariant ve : d2["MRData"]["StandingsTable"]
+    for (JsonVariant ve : ddoc["MRData"]["StandingsTable"]
                          ["StandingsLists"][0]
                          ["DriverStandings"]
                          .as<JsonArray>()) {
@@ -223,12 +202,7 @@ inline void handleF1Page() {
         </thead><tbody>
 )rawliteral");
   {
-    DynamicJsonDocument c2(8 * 1024);
-    http.begin(API_CONSTR_STAND);
-    if (http.GET()==HTTP_CODE_OK)
-      deserializeJson(c2, http.getStream());
-    http.end();
-    for (JsonVariant ve : c2["MRData"]["StandingsTable"]
+    for (JsonVariant ve : cdoc["MRData"]["StandingsTable"]
                          ["StandingsLists"][0]
                          ["ConstructorStandings"]
                          .as<JsonArray>()) {
